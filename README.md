@@ -1,134 +1,89 @@
-# CarND-Path-Planning-Project
-Self-Driving Car Engineer Nanodegree Program
-   
-### Simulator. You can download the Term3 Simulator BETA which contains the Path Planning Project from the [releases tab](https://github.com/udacity/self-driving-car-sim/releases).
+# Term 3 Project 1: Path Planning Project
 
-In this project your goal is to safely navigate around a virtual highway with other traffic that is driving +-10 MPH of the 50 MPH speed limit. You will be provided the car's localization and sensor fusion data, there is also a sparse map list of waypoints around the highway. The car should try to go as close as possible to the 50 MPH speed limit, which means passing slower traffic when possible, note that other cars will try to change lanes too. The car should avoid hitting other cars at all cost as well as driving inside of the marked road lanes at all times, unless going from one lane to another. The car should be able to make one complete loop around the 6946m highway. Since the car is trying to go 50 MPH, it should take a little over 5 minutes to complete 1 loop. Also the car should not experience total acceleration over 10 m/s^2 and jerk that is greater than 50 m/s^3.
+The simulator (version 1.2) was obtained from the Path Planning Project [releases tab](https://github.com/udacity/self-driving-car-sim/releases).
 
-#### The map of the highway is in data/highway_map.txt
-Each waypoint in the list contains  [x,y,s,dx,dy] values. x and y are the waypoint's map coordinate position, the s value is the distance along the road to get to that waypoint in meters, the dx and dy values define the unit normal vector pointing outward of the highway loop.
+The project was coded in C++ and implemented the ad-hoc path planner for safe and comfortable lane change trajectories. The implementation was done under the following constraints.
 
-The highway's waypoints loop around so the frenet s value, distance along the road, goes from 0 to 6945.554.
+1. Highway system is a 3-lane highway. Path planning and lane change trajectory planning was done for single side of the highway. Traffic on the other side of road was ignored.
 
-## Basic Build Instructions
+2. The data returned by the simulator is:
 
-1. Clone this repo.
-2. Make a build directory: `mkdir build && cd build`
-3. Compile: `cmake .. && make`
-4. Run it: `./path_planning`.
+    i. Vehicle position, speed and other data
 
-Here is the data provided from the Simulator to the C++ Program
+    ii. Localization information from Sensor Fusion, i.e., position, speed and other data
 
-#### Main car's localization Data (No Noise)
+    iii. coordinate of waypoints around the track. The next trajectory is planned using this information
 
-["x"] The car's x position in map coordinates
+3. Speed limit is 50 MPH with a margin of 10 MPH.
 
-["y"] The car's y position in map coordinates
+4. The magnitude of acceleration (m/s^2) and jerk (m/s^3) may not exceed 10.
 
-["s"] The car's s position in frenet coordinates
+5. The vehicle cannot collide with other vehicles on the track and should always drive in the right direction (no wrong ways).
 
-["d"] The car's d position in frenet coordinates
+6. Vehicle should complete at least one loop around the 4.32 mile (6.95 kms) long track.
 
-["yaw"] The car's yaw angle in the map
+## Code walkthrough
 
-["speed"] The car's speed in MPH
+There are ample comments provided along the code and most are self explanatory. Key code elements that require in-depth discussion are provide in the following listing.
 
-#### Previous path data given to the Planner
+1. The data returned by the simulator on main car and other vehicles in the vicinity is processed in lines 275-291. The details of the telemetry data are as follows:
 
-//Note: Return the previous list but with processed points removed, can be a nice tool to show how far along
-the path has processed since last time. 
+  * ["x"] The main car's x position in map coordinates
+  * ["y"] The main car's y position in map coordinates
+  * ["s"] The main car's s position in frenet coordinates
+  * ["d"] The main car's d position in frenet coordinates
+  * ["yaw"] The car's yaw angle in the map
+  * ["speed"] The car's speed in MPH
+  * ["previous_path_x"] The previous list of x points previously given to the simulator
+  * ["previous_path_y"] The previous list of y points previously given to the simulator
+  * ["end_path_s"] The previous list's last point's frenet s value
+  * ["end_path_d"] The previous list's last point's frenet d value
+  * ["sensor_fusion"] A 2d vector of cars and then that car's [car's unique ID, car's x position in map coordinates, car's y position in map coordinates, car's x velocity in m/s, car's y velocity in m/s, car's s position in frenet coordinates, car's d position in frenet coordinates. 
 
-["previous_path_x"] The previous list of x points previously given to the simulator
+2. Helper function to evaluate and fit polynomial functions are listed in lines 116-147.
 
-["previous_path_y"] The previous list of y points previously given to the simulator
+3. Helper functions to transformed data betwen local and global coordinate systems are listed in lines 149-204.
 
-#### Previous path's end s and d values 
+4. Before the new path can be planned, some basic checks are done. These are as follows:
 
-["end_path_s"] The previous list's last point's frenet s value
+  * Check for wrong way (lines 319-325).
+  * If no path exists (fresh start), then initialize a path segment using a smooth point set (lines 327-342).
+  * Smothen and convert path from local to global coordinates. Note that the path planning is done in local frenet coordinates.
 
-["end_path_d"] The previous list's last point's frenet d value
+5. For path planning in local frenet coordinates, the current lane of main vehicle and other vehicles is identified in lines 480-510. Based on current location of the main car and other cars, the best lane to transition is identified using a finite state representation. Although, Djikstra or A* planners can be used to identify the best path in frenet coordinate (s-d), the implementation was kept simple.
 
-#### Sensor Fusion Data, a list of all other car's attributes on the same side of the road. (No Noise)
+6. Since the main vehicle uses a perfect controller and will visit every (x,y) point it recieves in the list every 2 milliseconds, the maximum distance increment to the new path was limited to 0.445 m (which converts to maximum 50 mph). In the present submission, the decision making process to identify the target lane and velocity is implemented in lines 579-619.
 
-["sensor_fusion"] A 2d vector of cars and then that car's [car's unique ID, car's x position in map coordinates, car's y position in map coordinates, car's x velocity in m/s, car's y velocity in m/s, car's s position in frenet coordinates, car's d position in frenet coordinates. 
+7. In present implementation, the constraints for maximum acceleration and jerk are satisfied indirectly. That is, the points are adjusted using ad-hoc fractional mixing (see lines 593-619). These are further processed using the [spline function](http://kluge.in-chemnitz.de/opensource/spline/) to obtain smooth trajectories. The ideal way to do this is to assume to use a cubic polynomial and enforce acceleration and jerk constraints to obtain a smooth polynomial. The current location along with planner points can be used to obtain new points to meet this constraint.
 
-## Details
+8. To remedey the latency in the simulator and the compiled code, the new path was extended smoothly while using the datapoints from previous_path_x, and previous_path_y (see lines 621-656).
 
-1. The car uses a perfect controller and will visit every (x,y) point it recieves in the list every .02 seconds. The units for the (x,y) points are in meters and the spacing of the points determines the speed of the car. The vector going from a point to the next point in the list dictates the angle of the car. Acceleration both in the tangential and normal directions is measured along with the jerk, the rate of change of total Acceleration. The (x,y) point paths that the planner recieves should not have a total acceleration that goes over 10 m/s^2, also the jerk should not go over 50 m/s^3. (NOTE: As this is BETA, these requirements might change. Also currently jerk is over a .02 second interval, it would probably be better to average total acceleration over 1 second and measure jerk from that.
+## Dependencies to be resolved for succesful build
 
-2. There will be some latency between the simulator running and the path planner returning a path, with optimized code usually its not very long maybe just 1-3 time steps. During this delay the simulator will continue using points that it was last given, because of this its a good idea to store the last points you have used so you can have a smooth transition. previous_path_x, and previous_path_y can be helpful for this transition since they show the last points given to the simulator controller with the processed points already removed. You would either return a path that extends this previous path or make sure to create a new path that has a smooth transition with this last path.
+The build process was completed on Bash for Windows. Bash for Windows was obtained and installed using instructions from [here](https://msdn.microsoft.com/en-us/commandline/wsl/install_guide). Following this, the build environment was prepared using the following
 
-## Tips
+1. `sudo apt-get install build-essentials`
 
-A really helpful resource for doing this project and creating smooth trajectories was using http://kluge.in-chemnitz.de/opensource/spline/, the spline function is in a single hearder file is really easy to use.
+2. `sudo apt-get install cmake`
 
----
+3. Install [uWebSockets](https://github.com/uWebSockets/uWebSockets) using `install-ubuntu.sh`. It was essential to get branch `e94b6e1` to ensure compatibility with cmake. Newer version of uWebSockets does not use cmake.
 
-## Dependencies
+## Build steps followed for building executable
 
-* cmake >= 3.5
- * All OSes: [click here for installation instructions](https://cmake.org/install/)
-* make >= 4.1
-  * Linux: make is installed by default on most Linux distros
-  * Mac: [install Xcode command line tools to get make](https://developer.apple.com/xcode/features/)
-  * Windows: [Click here for installation instructions](http://gnuwin32.sourceforge.net/packages/make.htm)
-* gcc/g++ >= 5.4
-  * Linux: gcc / g++ is installed by default on most Linux distros
-  * Mac: same deal as make - [install Xcode command line tools]((https://developer.apple.com/xcode/features/)
-  * Windows: recommend using [MinGW](http://www.mingw.org/)
-* [uWebSockets](https://github.com/uWebSockets/uWebSockets)
-  * Run either `install-mac.sh` or `install-ubuntu.sh`.
-  * If you install from source, checkout to commit `e94b6e1`, i.e.
-    ```
-    git clone https://github.com/uWebSockets/uWebSockets 
-    cd uWebSockets
-    git checkout e94b6e1
-    ```
+Once the above dependencies were resolved, the following steps were used to build the executable for path planning project.
 
-## Editor Settings
+1. Clone the [Udacity Github Repo](https://github.com/udacity/CarND-Path-Planning-Project).
 
-We've purposefully kept editor configuration files out of this repo in order to
-keep it as simple and environment agnostic as possible. However, we recommend
-using the following settings:
+2. Update the `main.cpp` source file.
 
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
+3. Make a build directory: `mkdir build && cd build`
 
-## Code Style
+4. Compile: `cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo .. && make`
 
-Please (do your best to) stick to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
+    NOTE: The above `cmake` flag is essential to resolve the anonymous namespaces in `spline.h`. If the above flag is not used, then `Assertion 'x.size()==y.size()' failed` error may be encountered one line 288 of `spline.h` file.
 
-## Project Instructions and Rubric
+Once the executable is complied, it can be run using `./path_planning`.
 
-Note: regardless of the changes you make, your project must be buildable using
-cmake and make!
+Once the executable is running, the simulator is started. The executable was successfully tested with the simulator and the vehicle was able to finish a lap without incidents around the track. It is noted that there were 4-5 unsuccessful attempts in the initial stages due to a crowded vehicle field in front of the car. But after 2 laps around the track, the vehicle field was spread out, and the simulator eventually completed a lap with any incidents. The following images shows the successful completion of the requirements.
 
-
-## Call for IDE Profiles Pull Requests
-
-Help your fellow students!
-
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to ensure
-that students don't feel pressured to use one IDE or another.
-
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
-
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
-
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
-
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
-
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./
+![Success](./success.png)
