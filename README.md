@@ -28,17 +28,17 @@ There are ample comments provided along the code and most are self explanatory. 
 
 1. The data returned by the simulator on main car and other vehicles in the vicinity is processed in lines 275-291. The details of the telemetry data are as follows:
 
-  * ["x"] The main car's x position in map coordinates
-  * ["y"] The main car's y position in map coordinates
-  * ["s"] The main car's s position in frenet coordinates
-  * ["d"] The main car's d position in frenet coordinates
-  * ["yaw"] The car's yaw angle in the map
-  * ["speed"] The car's speed in MPH
-  * ["previous_path_x"] The previous list of x points previously given to the simulator
-  * ["previous_path_y"] The previous list of y points previously given to the simulator
-  * ["end_path_s"] The previous list's last point's frenet s value
-  * ["end_path_d"] The previous list's last point's frenet d value
-  * ["sensor_fusion"] A 2d vector of cars and then that car's [car's unique ID, car's x position in map coordinates, car's y position in map coordinates, car's x velocity in m/s, car's y velocity in m/s, car's s position in frenet coordinates, car's d position in frenet coordinates. 
+    * ["x"] The main car's x position in map coordinates
+    * ["y"] The main car's y position in map coordinates
+    * ["s"] The main car's s position in frenet coordinates
+    * ["d"] The main car's d position in frenet coordinates
+    * ["yaw"] The car's yaw angle in the map
+    * ["speed"] The car's speed in MPH
+    * ["previous_path_x"] The previous list of x points previously given to the simulator
+    * ["previous_path_y"] The previous list of y points previously given to the simulator
+    * ["end_path_s"] The previous list's last point's frenet s value
+    * ["end_path_d"] The previous list's last point's frenet d value
+    * ["sensor_fusion"] A 2d vector of cars and then that car's car's unique ID, car's x position in map coordinates, car's y position in map coordinates, car's x velocity in m/s, car's y velocity in m/s, car's s position in frenet coordinates, car's d position in frenet coordinates. 
 
 2. Helper function to evaluate and fit polynomial functions are listed in lines 116-147.
 
@@ -46,9 +46,9 @@ There are ample comments provided along the code and most are self explanatory. 
 
 4. Before the new path can be planned, some basic checks are done. These are as follows:
 
-  * Check for wrong way (lines 319-325).
-  * If no path exists (fresh start), then initialize a path segment using a smooth point set (lines 327-342).
-  * Smothen and convert path from local to global coordinates. Note that the path planning is done in local frenet coordinates.
+    * Check for wrong way (lines 319-325).
+    * If no path exists (fresh start), then initialize a path segment using a smooth point set (lines 327-342).
+    * Smothen and convert path from local to global coordinates. Note that the path planning is done in local frenet coordinates.
 
 5. For path planning in local frenet coordinates, the current lane of main vehicle and other vehicles is identified in lines 480-510. Based on current location of the main car and other cars, the best lane to transition is identified using a finite state representation. Although, Djikstra or A* planners can be used to identify the best path in frenet coordinate (s-d), the implementation was kept simple.
 
