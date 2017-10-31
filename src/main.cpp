@@ -108,57 +108,21 @@ vector<double> getFrenet(double x, double y, double theta, vector<double> maps_x
   return {frenet_s,frenet_d};
 }
 
-
-
-
-
-
 // !========== Helper Function ==========! //
-
-// Polynomial helper functions
-// Loosely based on unsupported Eigen polynomical functions.
-// see: https://eigen.tuxfamily.org/dox/unsupported/group__Polynomials__Module.html
-double poly_eval(Eigen::VectorXd cvals, double x) {
-  double pval = 0.0;
-  for (int nc = 0; nc < cvals.size(); nc++) { pval += cvals[nc]*pow(x, nc); }
-  return pval;
-}
-
-double poly_d_eval(Eigen::VectorXd cvals, double x) {
-  double pdval = 0.0;
-  for (int nc = 1; nc < cvals.size(); nc++) {
-    pdval += cvals[nc]*nc*CppAD::pow(x, nc-1);
-  }
-  return pdval;
-}
-
-Eigen::VectorXd poly_fit(Eigen::VectorXd x, Eigen::VectorXd y, int o) {
-  assert(x.size() == y.size());
-  assert(o >= 1 && o <= x.size() - 1);
-  Eigen::MatrixXd A(x.size(), o + 1);
-  for (int i = 0; i < x.size(); i++) { A(i, 0) = 1.0; }
-  for (int j = 0; j < x.size(); j++) {
-    for (int i = 0; i < o; i++) { A(j, i + 1) = A(j, i) * x(j); }
-  }
-  auto Q = A.householderQr();
-  auto result = Q.solve(y);
-  return result;
-}
-// Finish: polynomial helper functions
 
 // Coordinate transformation helper functions
 // 1. global (world) to local (car)
-vector<double> locXY(double lx, double ly, double ang, double gx, double gy) {
+vector<double> locXY(double cx, double cy, double ang, double wpx, double wpy) {
   vector<double> loc;
-  loc.push_back( (gx-lx)*cos(ang) + (gy-ly)*sin(ang));
-  loc.push_back(-(gx-lx)*sin(ang) + (gy-ly)*cos(ang));
+  loc.push_back( (wpx-cx)*cos(ang)+(wpy-cy)*sin(ang));
+  loc.push_back(-(wpx-cx)*sin(ang)+(wpy-cy)*cos(ang));
   return loc;
 }
 // 2. local (car) to global (world)
 vector<double> glbXY(double cx, double cy, double ang, double lx, double ly) {
   vector<double> glb;
-  glb.push_back(lx*cos(ang) - ly*sin(ang) + cx);
-  glb.push_back(lx*sin(ang) + ly*cos(ang) + cy);
+  glb.push_back(lx*cos(ang)-ly*sin(ang)+cx);
+  glb.push_back(lx*sin(ang)+ly*cos(ang)+cy);
   return glb;
 }
 // 3. Conversion of local WP segments
@@ -203,10 +167,6 @@ vector<vector<double>> l2g_pts(double cx, double cy, double yaw,
 
 // !========== End of Helper Function ==========! //
 
-
-
-
-
 int main() {
   uWS::Hub h;
 
@@ -233,28 +193,13 @@ int main() {
   string line;
   while (getline(in_map_, line)) {
     istringstream iss(line);
-    double x;
-    double y;
-    double s;
-    double d_x;
-    double d_y;
-    iss >> x;
-    iss >> y;
-    iss >> s;
-    iss >> d_x;
-    iss >> d_y;
-    map_waypoints_x.push_back(x);
-    map_waypoints_y.push_back(y);
-    map_waypoints_dx.push_back(d_x);
-    map_waypoints_dy.push_back(d_y);
+    double x, y, s, d_x, d_y;
+    iss >> x; iss >> y; iss >> s; iss >> d_x; iss >> d_y;
+    map_waypoints_x.push_back(x); map_waypoints_y.push_back(y);
+    map_waypoints_dx.push_back(d_x); map_waypoints_dy.push_back(d_y);
   }
 
-  // set up logging
-  string log_file = "../data/logger.csv";
-  ofstream out_log(log_file.c_str(), ofstream::out);
-  out_log << "t,x,y,vd,xyd,nd,d,st" << endl;
-
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_dx,&map_waypoints_dy,&vx,&vy,&vd,&xyd,&nextd,&inc_max,&dist_inc,&out_log,&timestep,&watchdog_timer,&lanechange]
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_dx,&map_waypoints_dy,&vx,&vy,&vd,&xyd,&nextd,&inc_max,&dist_inc,&timestep,&watchdog_timer,&lanechange]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -295,17 +240,9 @@ int main() {
           vector<double> next_x_vals;
           vector<double> next_y_vals;
 		  
-		  
-		  
-		  
-		  
-		  
-		  
-		  
-		  
 		  // !===== Begin new path definition =====! //
 		  
-          vector<double> lx, ly, t, t2, inc, nd; // for lane and speed control
+		  vector<double> lx, ly; // for lane and speed control
           int n_path = previous_path_x.size(), npts = 50;
           tk::spline lane_sm, vel_sm, local_sm;
 
@@ -317,20 +254,21 @@ int main() {
                                                   map_waypoints_dx, map_waypoints_dy);
           // Perform basic checks
 		  // 1. Wrong way
-          if (lwpxy[0][0] > 0.) {
-            car_yaw += 180;
+		  if (lwpxy[0][0] > 0.) {
+            car_yaw += 180; angle = deg2rad(car_yaw);
             lwpxy = locWPSeg(car_x, car_y, car_yaw, nextd,
                              map_waypoints_x,  map_waypoints_y,
-							 map_waypoints_dx, map_waypoints_dy);
+		                     map_waypoints_dx, map_waypoints_dy);
           }
-          lane_sm.set_points(lwpxy[0], lwpxy[1]);
-          // 2. If there is no path, process using following
-          if (n_path == 0) {
-            t.insert(t.end(),{-1.0, -15.0, -25.0, double(npts), double(npts*2)});
-			inc.insert(inc.end(), {dist_inc*0.01, dist_inc*0.10, dist_inc*0.15,
-			                       dist_inc*0.25, dist_inc*0.35, dist_inc});
+		  lane_sm.set_points(lwpxy[0], lwpxy[1]);
+		  // 2. If there is no path, process using following
+		  if (n_path == 0) {
+			vector<double> t, inc;
+            t.insert(t.end(),{-1.0, 15.0, 25.0, double(npts), double(npts*2)});
+			inc.insert(inc.end(), {dist_inc*0.01, dist_inc*0.10, dist_inc*0.25,
+			                       dist_inc*0.65, dist_inc*1.0});
             vel_sm.set_points(t,inc);
-
+			
             double lwpx_nxt = 0.0, lwpy_nxt = 0.0;
             for (int i = 0; i<npts; i++) {
               lwpx_nxt += vel_sm(double(i)); lwpy_nxt = lane_sm(lwpx_nxt);
@@ -340,7 +278,7 @@ int main() {
               else
                 vd.push_back(vel_sm(double(0)));
             }
-
+			
             // Smoothen the path
             double localxx = 0., localxy = 0.;
             for(int i = 0; i < npts; i++) {
@@ -362,18 +300,16 @@ int main() {
               vx.push_back(worldxy[0][i]); vy.push_back(worldxy[1][i]);
               next_x_vals.push_back(worldxy[0][i]); next_y_vals.push_back(worldxy[1][i]);
             }
-            out_log << timestep << "," << car_x << "," << car_y << ","  << "0,0," << nextd << "," << frenet[1] << "," << watchdog_timer << std::endl;
 
 		  // If path already exists (n_path not 0), then car is moving and
 		  // following code will attempt to update it using data from sensor_fusion
 		  // and use path planner to determine new path
           } else {
-            vector<vector<double>> previous_localxy = g2l_pts(car_x, car_y, car_yaw, previous_path_x, previous_path_y);
+			vector<vector<double>> previous_localxy = g2l_pts(car_x, car_y, car_yaw, previous_path_x, previous_path_y);
             lx = previous_localxy[0]; ly = previous_localxy[1];
-
+			
             for (int i = 0; i < (npts-n_path); i++) {
               vector<double> frenet = getFrenet(vx[i], vy[i], deg2rad(car_yaw), map_waypoints_x, map_waypoints_y);
-              out_log << timestep << "," << vx[i] << "," << vy[i] << "," << vd[i] << "," << xyd[i] << "," << nextd << "," << frenet[1] << "," << watchdog_timer << std::endl;
             }
             vx.erase(vx.begin(),vx.begin()+(npts-n_path));
             vy.erase(vy.begin(),vy.begin()+(npts-n_path));
@@ -386,43 +322,44 @@ int main() {
 
             vector<vector<double>> newwxy = locWPSeg(car_x, car_y, car_yaw, nextd, map_waypoints_x, map_waypoints_y, map_waypoints_dx, map_waypoints_dy);
             if (newwxy[0][0] > 0.) {
-              car_yaw += 180;
+              car_yaw += 180; angle = deg2rad(car_yaw);
               newwxy = locWPSeg(car_x, car_y, car_yaw, nextd, map_waypoints_x, map_waypoints_y, map_waypoints_dx, map_waypoints_dy);
             }
             tk::spline newlane;
-            newlane.set_points(newwxy[0], newwxy[1]);
-            vector<double> localwx; vector<double> localwy;
-            for (int i; i<n_path; i++) {
+			newlane.set_points(newwxy[0], newwxy[1]);
+			vector<double> localwx; vector<double> localwy;
+			for (int i=0; i<n_path; i++) {
               localwx.push_back(lx[i]); localwy.push_back(ly[i]);
             }
-            double nextx = lx[n_path-1]+40;
-            for (int i; i<n_path; i++) {
-              localwx.push_back(nextx); localwy.push_back(newlane(nextx));
+			double nextx = lx[n_path-1]+40;
+			for (int i=0; i<n_path; i++) {
+              localwx.push_back(nextx);
+			  localwy.push_back(newlane(nextx));
               nextx += dist_inc;
             }
-            lane_sm.set_points(localwx, localwy);
-
+			lane_sm.set_points(localwx, localwy);
+			
             for(int i = 0; i < n_path; i++) {
               next_x_vals.push_back(previous_path_x[i]);
               next_y_vals.push_back(previous_path_y[i]);
             }
 
-            t.push_back(0.);
-            t.push_back(double(250));
-            if (vd[0] < inc_max) {
-              inc.push_back(vd[0]);
+			vector<double> t, inc;
+            t.insert(t.end(),{0.0,125.0, 250.0});
+			if (vd[0] < inc_max) {
+			  inc.insert(inc.end(), {vd[0], 0.5*(vd[0]+dist_inc), dist_inc});
             } else {
-              inc.push_back(vd[n_path-1]);
+              inc.insert(inc.end(), {vd[n_path-1], 0.5*(vd[n_path-1]+dist_inc), dist_inc});
             }
-            inc.push_back(dist_inc);
-            vel_sm.set_points(t,inc);
-
+			vel_sm.set_points(t,inc);
+			
             for(int i = n_path; i<npts; i++) {
-              lx.push_back(lx[i-1]+vel_sm(double(i))); ly.push_back(lane_sm(lx[i]));
+              lx.push_back(lx[i-1]+vel_sm(double(i)));
+			  ly.push_back(lane_sm(lx[i]));
               vx.push_back(0.0); vy.push_back(0.0);
               next_x_vals.push_back(0.0); next_y_vals.push_back(0.0);
             }
-
+			
             double localxx = lx[0]; double localxy = ly[0];
             for(int i = 0; i < npts; i++) {
               ly[i] = lane_sm(lx[i]);
@@ -627,9 +564,8 @@ int main() {
             localx[i] = next_x*cos(angle) + next_y*sin(angle);
             localy[i] = -next_x*sin(angle) + next_y*cos(angle);
           }
-
-          local_sm.set_points(localx, localy);
-          double localxx = 0., localxy = 0.;
+		  local_sm.set_points(localx, localy);
+		  double localxx = 0., localxy = 0.;
           for(int i = 0; i < npts; i++) {
             localy[i] = local_sm(localx[i]);
             double dist = distance(localxx, localxy, localx[i], localy[i]);
@@ -641,7 +577,7 @@ int main() {
             }
             localxx = localx[i]; localxy = localy[i];
           }
-
+		  
           for (int i=0; i<npts; i++) {
             next_x_vals[i] = localx[i]*cos(angle) - localy[i]*sin(angle) + car_x;
             next_y_vals[i] = localx[i]*sin(angle) + localy[i]*cos(angle) + car_y;
@@ -654,17 +590,11 @@ int main() {
               xyd.push_back(dist_inc);
           }
 		  
+		  //prev_yaw = car_yaw;
+		  
 		  // !===== End path definition =====! //
-
 		  
-		  
-		  
-		  
-		  
-		  
-		  
-		  
-          msgJson["next_x"] = next_x_vals;
+		  msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
 
           auto msg = "42[\"control\","+ msgJson.dump()+"]";
