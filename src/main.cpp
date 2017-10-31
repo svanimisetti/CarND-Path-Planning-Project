@@ -590,8 +590,6 @@ int main() {
               xyd.push_back(dist_inc);
           }
 		  
-		  //prev_yaw = car_yaw;
-		  
 		  // !===== End path definition =====! //
 		  
 		  msgJson["next_x"] = next_x_vals;
