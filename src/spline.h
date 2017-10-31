@@ -281,6 +281,25 @@ void spline::set_boundary(spline::bd_type left, double left_value,
     m_force_linear_extrapolation=force_linear_extrapolation;
 }
 
+// Following functions help in paired sorting of vectors
+// Used to prevent assertion error if spline fitting data
+// x-values are not monotonously increasing
+// see https://stackoverflow.com/a/17074810 for more details.
+template <typename T>
+std::vector<std::size_t> sort_permutation(const std::vector<T>& vec) {
+    std::vector<std::size_t> p(vec.size());
+    std::iota(p.begin(), p.end(), 0);
+    std::sort(p.begin(), p.end(),
+        [&](std::size_t i, std::size_t j){ return vec[i]<vec[j]; });
+    return p;
+}
+template <typename T>
+std::vector<T> apply_permutation(const std::vector<T>& vec, const std::vector<std::size_t>& p) {
+    std::vector<T> sorted_vec(vec.size());
+    std::transform(p.begin(), p.end(), sorted_vec.begin(),
+        [&](std::size_t i){ return vec[i]; });
+    return sorted_vec;
+}
 
 void spline::set_points(const std::vector<double>& x,
                         const std::vector<double>& y, bool cubic_spline)
@@ -291,9 +310,14 @@ void spline::set_points(const std::vector<double>& x,
     m_y=y;
     int   n=x.size();
     // TODO: maybe sort x and y, rather than returning an error
-    for(int i=0; i<n-1; i++) {
-        assert(m_x[i]<m_x[i+1]);
-    }
+    //for(int i=0; i<n-1; i++) {
+    //    assert(m_x[i]<m_x[i+1]);
+    //}
+	// SKV 10.26.2017 - added paired vector sorting
+	// added support functions in lines 284-302 above
+	auto p = sort_permutation(m_x);
+	m_x = apply_permutation(m_x, p);
+	m_y = apply_permutation(m_y, p);
 
     if(cubic_spline==true) { // cubic spline interpolation
         // setting up the matrix and right hand side of the equation system
