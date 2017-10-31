@@ -26,7 +26,7 @@ The project was coded in C++ and implemented the ad-hoc path planner for safe an
 
 There are ample comments provided along the code and most are self explanatory. Key code elements that require in-depth discussion are provide in the following listing.
 
-1. The data returned by the simulator on main car and other vehicles in the vicinity is processed in lines 275-291. The details of the telemetry data are as follows:
+1. The data returned by the simulator on main car and other vehicles in the vicinity is processed in lines 216-236. The details of the telemetry data are as follows:
 
     * ["x"] The main car's x position in map coordinates
     * ["y"] The main car's y position in map coordinates
@@ -40,23 +40,21 @@ There are ample comments provided along the code and most are self explanatory. 
     * ["end_path_d"] The previous list's last point's frenet d value
     * ["sensor_fusion"] A 2d vector of cars and then that car's car's unique ID, car's x position in map coordinates, car's y position in map coordinates, car's x velocity in m/s, car's y velocity in m/s, car's s position in frenet coordinates, car's d position in frenet coordinates. 
 
-2. Helper function to evaluate and fit polynomial functions are listed in lines 116-147.
+2. Helper functions for transforming data betwen local and global coordinate systems are listed in lines 111-168.
 
-3. Helper functions to transformed data betwen local and global coordinate systems are listed in lines 149-204.
+3. Before the new path can be planned, some basic checks are done. These are as follows:
 
-4. Before the new path can be planned, some basic checks are done. These are as follows:
-
-    * Check for wrong way (lines 319-325).
-    * If no path exists (fresh start), then initialize a path segment using a smooth point set (lines 327-342).
+    * Check for wrong way (lines 256-262).
+    * If no path exists (fresh start), then initialize a path segment using a smooth point set (lines 308-385).
     * Smothen and convert path from local to global coordinates. Note that the path planning is done in local frenet coordinates.
 
-5. For path planning in local frenet coordinates, the current lane of main vehicle and other vehicles is identified in lines 480-510. Based on current location of the main car and other cars, the best lane to transition is identified using a finite state representation. Although, Djikstra or A* planners can be used to identify the best path in frenet coordinate (s-d), the implementation was kept simple.
+4. For path planning in local frenet coordinates, the current lane of main vehicle and other vehicles is identified in lines 399-446. Based on current location of the main car and other cars, the best lane to transition is identified using a finite state representation. Although, Djikstra or A* planners can be used to identify the best path in frenet coordinate (s-d), the implementation was kept simple.
 
-6. Since the main vehicle uses a perfect controller and will visit every (x,y) point it recieves in the list every 2 milliseconds, the maximum distance increment to the new path was limited to 0.445 m (which converts to maximum 50 mph). In the present submission, the decision making process to identify the target lane and velocity is implemented in lines 579-619.
+5. Since the main vehicle uses a perfect controller and will visit every (x,y) point it recieves in the list every 2 milliseconds, the maximum distance increment to the new path was limited to 0.445 m (which converts to maximum 50 mph). In the present submission, the decision making process to identify the target lane and velocity is implemented in lines 448-556.
 
-7. In present implementation, the constraints for maximum acceleration and jerk are satisfied indirectly. That is, the points are adjusted using ad-hoc fractional mixing (see lines 593-619). These are further processed using the [spline function](http://kluge.in-chemnitz.de/opensource/spline/) to obtain smooth trajectories. The ideal way to do this is to assume to use a cubic polynomial and enforce acceleration and jerk constraints to obtain a smooth polynomial. The current location along with planner points can be used to obtain new points to meet this constraint.
+6. In present implementation, the constraints for maximum acceleration and jerk are satisfied indirectly. That is, the points are adjusted using ad-hoc fractional mixing. These are further processed using the [spline function](http://kluge.in-chemnitz.de/opensource/spline/) to obtain smooth trajectories. The ideal way to do this is to assume to use a cubic polynomial and enforce acceleration and jerk constraints to obtain a smooth polynomial. The current location along with planner points can be used to obtain new points to meet this constraint.
 
-8. To remedey the latency in the simulator and the compiled code, the new path was extended smoothly while using the datapoints from previous_path_x, and previous_path_y (see lines 621-656).
+7. To remedey the latency in the simulator and the compiled code, the new path was extended smoothly while using the datapoints from previous_path_x, and previous_path_y (see lines 558-591).
 
 ## Dependencies to be resolved for succesful build
 
